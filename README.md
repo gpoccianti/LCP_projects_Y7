@@ -26,5 +26,9 @@ In parrticular we based our analysis on:
 
 ...
 
+![An example of trending asset](image/closing_prices_plot.png)
+
+
 This project has been realized in collaboration and under the supervision of the company (XSOR Capital) [https://www.xsorcapital.com].
+
 In particular we thank (Nicole Zattarin) [nicole.zattarin@xsorcapital.com] for her guidance.
