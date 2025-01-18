@@ -15,7 +15,7 @@ A Virtual Machine within [CloudVeneto](http://cloudveneto.it/) can be created fo
 
 Alternatively, students can use [colab](https://colab.research.google.com/) (for which though no instructions are provided here).
 
-#Project description
+# Project description
 ## Trending Asset into Mean Reverting Asset
 
 Trending assets are those whose prices or returns display a sustained movement in one direction (upward or downward) over time. Trending assets are typically non-stationary, meaning their statistical properties (e.g., mean, variance) evolve over time. This poses challenges for many standard financial analyses, which assume stationarity.
@@ -26,7 +26,7 @@ In particular we based our analysis on:
 
 ...
 
-![An example of trending asset](Image/closing_prices_plot.png)
+![An example of trending asset](Image/closing_prices_plot.png "An example of trending asset")
 
 
 This project has been realized in collaboration and under the supervision of the company (XSOR Capital) [https://www.xsorcapital.com].
