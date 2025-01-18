@@ -22,11 +22,11 @@ Trending assets are those whose prices or returns display a sustained movement i
 
 In this project our task has been to transform a trending financial asset into one that exhibits mean-reverting behavior through mathematical or statistical normalization techniques.
 
-In parrticular we based our analysis on:
+In particular we based our analysis on:
 
 ...
 
-![An example of trending asset](image/closing_prices_plot.png)
+![An example of trending asset](Image/closing_prices_plot.png)
 
 
 This project has been realized in collaboration and under the supervision of the company (XSOR Capital) [https://www.xsorcapital.com].
