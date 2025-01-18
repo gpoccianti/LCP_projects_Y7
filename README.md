@@ -15,3 +15,4 @@ A Virtual Machine within [CloudVeneto](http://cloudveneto.it/) can be created fo
 
 Alternatively, students can use [colab](https://colab.research.google.com/) (for which though no instructions are provided here).
 
+## XSOR Project
