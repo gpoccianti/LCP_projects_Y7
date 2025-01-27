@@ -99,5 +99,58 @@ def filter_signal(sig, datetime_index, time_step=15*60, freq_factor=100):
 
     return filtered_sig_series
 
-# Example usage:
-# filtered_sig_series = filter_signal(sig, datetime_index)
+
+def filter_signal_by_auc(sig, datetime_index, time_step=15*60, discard_fraction=0.1,plot_spectrum=False):
+    """
+    Filters the input signal by removing high-frequency components based on the area under the curve (AUC).
+
+    Parameters:
+    sig (array-like): The signal to be filtered.
+    datetime_index (pd.DatetimeIndex): The datetime index for the signal.
+    time_step (float): The time step (in seconds) between each data point (default is 15 minutes).
+    discard_fraction (float): Fraction of the total power to discard (default is 10%).
+
+    Returns:
+    filtered_sig_series (pd.Series): A Pandas Series containing the filtered signal with the datetime index.
+    """
+    # The corresponding frequencies
+    sample_freq = fftfreq(sig.size, d=time_step)
+    pos_mask = sample_freq > 0
+    freqs = sample_freq[pos_mask]
+
+    # Perform the FFT
+    sig_fft = fft(np.array(sig))
+    power = np.abs(sig_fft) ** 2
+
+    # Compute cumulative power
+    cumulative_power = np.cumsum(power[pos_mask])
+    total_power = cumulative_power[-1]
+    target_power = (1 - discard_fraction) * total_power
+
+    # Determine the cutoff frequency
+    cutoff_idx = np.searchsorted(cumulative_power, target_power)
+    cutoff_freq = freqs[cutoff_idx]
+
+    # Apply the frequency filter
+    filtered_fft = sig_fft.copy()
+    filtered_fft[np.abs(sample_freq) > cutoff_freq] = 0
+    filtered_sig = ifft(filtered_fft)
+
+    # Convert filtered signal to real values (IFFT output might be complex)
+    filtered_sig = np.real(filtered_sig)
+
+    # Create a Pandas Series with the datetime index and the filtered signal
+    filtered_sig_series = pd.Series(filtered_sig, index=datetime_index)
+    
+    if(plot_spectrum==True):
+        # Plot for visualization
+        plt.figure(figsize=(6, 5))
+        plt.plot(freqs, np.cumsum(power[pos_mask]) / total_power, label="Cumulative Power")
+        plt.axvline(cutoff_freq, color='red', linestyle='--', label=f"Cutoff: {cutoff_freq:.2e} Hz")
+        plt.xlabel('Frequency [Hz]')
+        plt.ylabel('Normalized Cumulative Power')
+        plt.title("Cumulative Power Spectrum")
+        plt.legend()
+        plt.show()
+
+    return filtered_sig_series
