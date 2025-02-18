@@ -33,6 +33,7 @@ def interval_selector(n_s, n_e):
     else:
         end = pd.to_datetime('2020.10.12 08:45:00')
         end_index=df.index.get_loc(end)
+    return start_index, end_index
 
 def plot_close(data, start=None, end=None):
     """
