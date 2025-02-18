@@ -5,6 +5,7 @@ import yfinance as yf
 import mplfinance as mpf
 from hurst import compute_Hc
 from scipy.fftpack import fft, ifft, fftfreq
+from pymannkendall import original_test, hamed_rao_modification_test
 
 
 
@@ -18,6 +19,7 @@ def import_data(file_path):
     # Set datetime as the index (optional but helpful for time series)
     data.set_index('datetime', inplace=True)
     return data, data['<CLOSE>'] #Returns both the entire dataset and just close
+
 
 def interval_selector(n_s, n_e):
     starting_position=96*n_s #96 corresponds to 1 day of data
@@ -34,6 +36,7 @@ def interval_selector(n_s, n_e):
         end = pd.to_datetime('2020.10.12 08:45:00')
         end_index=df.index.get_loc(end)
     return start_index, end_index
+
 
 def plot_close(data, start=None, end=None):
     """
@@ -169,3 +172,28 @@ def filter_signal_by_auc(sig, datetime_index, time_step=15*60, discard_fraction=
         plt.show()
 
     return filtered_sig_series
+
+def mann_kendall(chunk, end_index, start_index, df):
+    chunk_size=96*chunk 
+    test_result=[]
+    test_result_filtered=[]
+    for i in range(0,int((end_index-start_index)/chunk_size)):
+        
+        s=start_index+i*chunk_size
+        e=start_index+(i+1)*chunk_size
+        
+        prices=np.array(df.loc[df.index[s]:df.index[e],['HA_close']])
+        prices=prices.reshape(chunk_size+1)
+        time_indices=df.index[s:e+1]
+        prices_filtered=filter_signal_by_auc(prices,time_indices,plot_spectrum=False)
+        
+        trend_test_modified_filtered = hamed_rao_modification_test(prices_filtered)
+            
+        if (trend_test_modified_filtered[0]=='no trend'):
+            test_result_filtered.append(0)
+        elif (trend_test_modified_filtered[0]=='increasing'):
+            test_result_filtered.append(1)
+        else:
+            test_result_filtered.append(-1)
+    return test_result_filtered
+
