@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
+from matplotlib.animation import FuncAnimation
 import yfinance as yf
 import mplfinance as mpf
 from hurst import compute_Hc
@@ -270,7 +271,7 @@ def heatmap(stride_values, start_index, end_index, chunk_size, df):
     plt.title('Trend Detection Heatmap vs. Stride Length',fontsize=16)
     plt.show()
     
-def z_statistic(start_index, end_index, df):
+def z_statistic(start_index, end_index, df, gif=False):
     '''
     function to apply the Mann Kendall test on a rolling basis and to properly display the result
     '''
@@ -314,3 +315,50 @@ def z_statistic(start_index, end_index, df):
     ax[1].axhspan(ax[1].get_ylim()[0], -z_bound, facecolor='red', alpha=0.2)
     ax[1].set_ylabel('z-statistic')
     ax[1].legend()
+
+    if(gif==True):
+        fig, ax = plt.subplots(2, 1, figsize=(12, 7), sharex=True, gridspec_kw={'height_ratios': [3,1]})
+        fig.tight_layout()
+        
+        def update(frame):
+            ax[0].cla()  # Clear previous plot
+            ax[1].cla()  # Clear previous plot
+        
+            ax[0].set_ylabel('price')
+            ax[1].set_ylabel('z-statistic')
+           
+            # Highlight rolling window in ax[0] (gray shading and vertical lines)
+            start_idx = frame
+            end_idx = start_idx + chunk_size
+            if end_idx < len(df_filtered):
+                ax[0].plot(df_filtered['HA_close'], label="HA_close")
+                ax[0].axvspan(df_filtered.index[start_idx], df_filtered.index[end_idx], color='gray', alpha=0.3)
+                ax[0].axvline(df_filtered.index[start_idx], color='red', linestyle='--', linewidth=1)
+                ax[0].axvline(df_filtered.index[end_idx], color='red', linestyle='--', linewidth=1)
+            
+            # In ax[1], plot the computed stats and show window as well
+            ax[1].scatter(df_filtered.index[:end_idx], df_filtered['stat'][:end_idx], s=0.5, label="z-statistic")
+            if end_idx < len(df_filtered):
+                ax[1].axvspan(df_filtered.index[start_idx], df_filtered.index[end_idx], color='gray', alpha=0.3)
+            # Show the z-boundaries for significance in ax[1]
+            ax[1].axhline(y=z_bound, color='black', linestyle='--', alpha=0.5)
+            ax[1].axhline(y=-z_bound, color='black', linestyle='--', alpha=0.5, label='no trend (CI=95%)')
+            ax[1].axhspan(z_bound, ax[1].get_ylim()[1], facecolor='green', alpha=0.2)
+            ax[1].axhspan(-z_bound, z_bound, facecolor='blue', alpha=0.2)
+            ax[1].axhspan(ax[1].get_ylim()[0], -z_bound, facecolor='red', alpha=0.2)        
+            ax[1].legend()
+            
+            return ax
+    
+        # Set the number of frames based on the rolling window size and length of df_filtered['stat']
+        num_frames = len(df_filtered['stat']) - chunk_size
+        
+        # Animation setup
+        ani = FuncAnimation(fig, update, frames=range(0, num_frames), interval=200, repeat=False)
+        
+        fig.suptitle('Prices vs z-stat')
+        ax[0].set_ylabel('price')
+        ax[1].set_ylabel('z-statistic')
+        
+        # Save the animation as a gif
+        ani.save('rolling_computation_evolution.gif', writer='Pillow', fps=9)
