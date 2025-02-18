@@ -19,6 +19,20 @@ def import_data(file_path):
     data.set_index('datetime', inplace=True)
     return data, data['<CLOSE>'] #Returns both the entire dataset and just close
 
+def interval_selector(n_s, n_e):
+    starting_position=96*n_s #96 corresponds to 1 day of data
+    if (starting_position!=0):
+        start = df.index[starting_position]   
+    else:
+        start=pd.to_datetime('2020.09.24 08:45:00')  #<-->if n==0 start from the beginning
+    start_index=df.index.get_loc(start) #to get the numeric index
+    end_index=96*n_e
+    if (end_index!=0):
+        end = df.index[end_index]
+        print(end)
+    else:
+        end = pd.to_datetime('2020.10.12 08:45:00')
+        end_index=df.index.get_loc(end)
 
 def plot_close(data, start=None, end=None):
     """
