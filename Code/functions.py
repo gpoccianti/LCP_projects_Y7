@@ -17,7 +17,6 @@ from scipy.stats import anderson
 from scipy.special import erf
 
 
-
 def import_data(file_path):
     """
     function to import the dataset
@@ -98,7 +97,7 @@ def plot_close(data, start=None, end=None):
     plt.show()
 
 
-def filter_signal(sig, datetime_index, time_step=15*60, freq_factor=100):
+def filter_signal(sig, datetime_index, time_step=15*60, freq_factor=100,plot=False):
     """
     Filters the input signal by removing high-frequency components based on the peak frequency.
 
@@ -117,13 +116,14 @@ def filter_signal(sig, datetime_index, time_step=15*60, freq_factor=100):
     # Perform the FFT
     sig_fft = fft(np.array(sig))
     power = np.abs(sig_fft)
-
-    # Plot the power spectrum
-    plt.figure(figsize=(6, 5))
-    plt.plot(sample_freq, np.log(power))
-    plt.xlabel('Frequency [Hz]')
-    plt.ylabel('Power')
-    plt.title("Power spectrum of the signal")
+    
+    if(plot==True):
+        # Plot the power spectrum
+        plt.figure(figsize=(6, 5))
+        plt.plot(sample_freq, np.log(power))
+        plt.xlabel('Frequency [Hz]')
+        plt.ylabel('Power')
+        plt.title("Power spectrum of the signal")
 
     # Find the peak frequency (only considering positive frequencies)
     pos_mask = np.where(sample_freq > 0)
@@ -554,12 +554,9 @@ def process_time_series(
     end_index,
     time_step=15*60,
     discard_fraction=0.01,
-    plot_spectrum=False
-):
+    plot_spectrum=False):
 
-    # --------------------
-    # 1) LOAD DATA
-    # --------------------
+
     df = pd.read_csv(file_path, delimiter='\t')
 
     # Rename columns
@@ -579,40 +576,52 @@ def process_time_series(
     df['HA_high']  = df[['High', 'HA_open', 'HA_close']].max(axis=1)
     df['HA_low']   = df[['Low', 'HA_open', 'HA_close']].min(axis=1)
 
-
+    
     # Subset the DataFrame for the given range
     df_range = df.iloc[start_index:end_index].copy()
-
-    # -------------------------
-    # 2) HELPER FUNCTIONS
-    # -------------------------
-
-
-    def filter_signal(sig, datetime_index):
-        """Applies FFT-based filtering to remove high frequencies."""
-        sig_array = sig.to_numpy().flatten()  # Ensure 1D
-        sample_freq = fftfreq(len(sig_array), d=time_step)
+    
+    def filter_signal_by_auc(sig, datetime_index, time_step=15*60, discard_fraction=0.1,plot_spectrum=False):
+        # The corresponding frequencies
+        sample_freq = fftfreq(sig.size, d=time_step)
         pos_mask = sample_freq > 0
         freqs = sample_freq[pos_mask]
 
-        sig_fft = fft(sig_array)
-        power = np.abs(sig_fft)**2
+        # Perform the FFT
+        sig_fft = fft(np.array(sig))
+        power = np.abs(sig_fft) ** 2
+
+        # Compute cumulative power
         cumulative_power = np.cumsum(power[pos_mask])
-        total_power = cumulative_power[-1] if len(cumulative_power) > 0 else 0
+        total_power = cumulative_power[-1]
         target_power = (1 - discard_fraction) * total_power
 
+        # Determine the cutoff frequency
         cutoff_idx = np.searchsorted(cumulative_power, target_power)
-        if len(freqs) > 0:
-            cutoff_freq = freqs[min(cutoff_idx, len(freqs) - 1)]
-        else:
-            cutoff_freq = 0
+        cutoff_freq = freqs[cutoff_idx]
 
-        # Zero out frequencies above the cutoff
+        # Apply the frequency filter
         filtered_fft = sig_fft.copy()
         filtered_fft[np.abs(sample_freq) > cutoff_freq] = 0
-        filtered_sig = np.real(ifft(filtered_fft))
+        filtered_sig = ifft(filtered_fft)
 
-        return pd.Series(filtered_sig, index=datetime_index)
+        # Convert filtered signal to real values (IFFT output might be complex)
+        filtered_sig = np.real(filtered_sig)
+
+        # Create a Pandas Series with the datetime index and the filtered signal
+        filtered_sig_series = pd.Series(filtered_sig, index=datetime_index)
+
+        if(plot_spectrum==True):
+            # Plot for visualization
+            plt.figure(figsize=(6, 5))
+            plt.plot(freqs, np.cumsum(power[pos_mask]) / total_power, label="Cumulative Power")
+            plt.axvline(cutoff_freq, color='red', linestyle='--', label=f"Cutoff: {cutoff_freq:.2e} Hz")
+            plt.xlabel('Frequency [Hz]')
+            plt.ylabel('Normalized Cumulative Power')
+            plt.title("Cumulative Power Spectrum")
+            plt.legend()
+            plt.show()
+
+        return filtered_sig_series
 
     def compute_trend_strength(series, window):
         """Computes a rolling trend strength based on the slope of linear regression."""
@@ -624,7 +633,6 @@ def process_time_series(
             slope, _, _, _, _ = linregress(x, y)
             slopes.append(abs(slope))  # Absolute slope as trend strength
         return np.concatenate([[0] * (window - 1), slopes])
-
     def adaptive_chunk_size(series, base_chunk, max_chunk, trend_threshold):
         """Adjusts chunk size dynamically based on trend strength."""
         trend_strength = compute_trend_strength(series, window=base_chunk)
@@ -635,13 +643,6 @@ def process_time_series(
             else:
                 chunk_sizes.append(base_chunk)
         return chunk_sizes
-
-
-    # ---------------------------
-    # 3) ADAPTIVE CHUNKING LOGIC
-    # ---------------------------
-    # Compute an array of chunk sizes (one per bar).
-    # We'll iterate over df_range using these chunk sizes.
     chunk_sizes = adaptive_chunk_size(
         df_range['HA_close'],
         base_chunk=base_chunk_size,
@@ -649,10 +650,10 @@ def process_time_series(
         trend_threshold=0.001
     )
 
-
+    # We'll store chunk start/end indices in this list
     chunk_indices = []
 
-    idx = df_range.index[0]
+    idx = df_range.index[0]   # Start from the first datetime in df_range
     i   = 0                   # We'll move through the chunk_sizes array
     end_datetime = df_range.index[-1]
 
@@ -660,24 +661,14 @@ def process_time_series(
         if i >= len(chunk_sizes):
             # If we've run out of chunk_sizes, break
             break
-
         current_chunk = chunk_sizes[i]
         s_time = idx
-        # Move forward 'current_chunk' steps in time
-        # We can do this by finding the index that is 'current_chunk' rows ahead
-        # relative to s_time in df_range.
-
-        # Current row position in df_range
         row_pos = df_range.index.get_loc(s_time)
         e_pos = row_pos + current_chunk
-
         if e_pos >= len(df_range):
             e_pos = len(df_range) - 1  # Last valid position
-
         e_time = df_range.index[e_pos]
-
         chunk_indices.append((s_time, e_time))
-
         # Update for next iteration
         i = e_pos + 1  # move to next index in chunk_sizes
         if e_pos + 1 < len(df_range):
@@ -686,24 +677,14 @@ def process_time_series(
             break
         if e_time == end_datetime:
             break
-    # ----------------------------------
-    # 4) CHECK TRENDING BEHAVIOR BEFORE
-    # ----------------------------------
-
     checkpoint=hamed_rao_modification_test(df_range['HA_close'].values).trend
     if checkpoint == 'increasing' or checkpoint=='decreasing':
-
-        # ----------------------------------
-        # 4.1) LOOP OVER ADAPTIVE CHUNKS
-        # ----------------------------------
         test_result = []
         test_result_filtered = []
-
         for (start_time, end_time) in chunk_indices:
             segment = df_range.loc[start_time:end_time, 'HA_close']
         # Apply filtering to that chunk
             segment_filtered = filter_signal(segment, segment.index)
-
         # Mann-Kendall on raw segment
             mk_raw = hamed_rao_modification_test(segment.values)
             if mk_raw[0] == 'increasing':
@@ -712,7 +693,6 @@ def process_time_series(
                 test_result.append(-1)
             else:
                 test_result.append(0)
-
         # Mann-Kendall on filtered segment
             mk_filt = hamed_rao_modification_test(segment_filtered.values)
             if mk_filt[0] == 'increasing':
@@ -721,12 +701,7 @@ def process_time_series(
                 test_result_filtered.append(-1)
             else:
                 test_result_filtered.append(0)
-
         df_filtered = filter_signal(df_range['HA_close'], df_range.index)
-
-        # --------------------------------------
-        # 4.2) DETREND USING THE ADAPTIVE CHUNKS
-        # --------------------------------------
         detrended_segments = []
         trend_regions = []
         trend_lines   = []
@@ -734,13 +709,11 @@ def process_time_series(
     # We'll track each chunk's results here
         for idx_chunk, (start_time, end_time) in enumerate(chunk_indices):
             segment = df_range.loc[start_time:end_time, 'HA_close'].values
-            #segment = df_filtered[start_time:end_time].values
             trend_flag = test_result_filtered[idx_chunk]
             s_pos = df_range.index.get_loc(start_time)
             e_pos = df_range.index.get_loc(end_time)
             length = (e_pos - s_pos) + 1
             x_vals = np.arange(length).reshape(-1, 1)
-
             if trend_flag != 0:
                 # Trend: use linear regression
                 model = LinearRegression()
@@ -752,27 +725,18 @@ def process_time_series(
             else:
                 # Mean-reverting: subtract mean
                 detrended_seg = segment - np.mean(segment)
-
             detrended_segments.append(detrended_seg)
-
         # Combine all detrended segments into a single 1D array
         detrended_values = np.concatenate(detrended_segments)
-
         # Detrended index
         detrended_index = df_range.index[:len(detrended_values)]
         detrended_full  = pd.Series(detrended_values, index=detrended_index)
-
-
-        # --------------------------------------
-        # 4.4) PLOT
-        # --------------------------------------
         fig, (ax1, ax2) = plt.subplots(2, 1, gridspec_kw={'height_ratios': [3, 1]}, figsize=(12, 6))
 
         # Plot original data
         #mpf.plot(df[start_time:end_time], type='candle', ax=ax1, style='yahoo', volume=False)
         #ax1.set_title("Asset Price with Trend")
         ax1.plot(df_range.index, df_range['HA_close'], label='Original', color='orange')
-
         # Detrended data
         ax2.plot(detrended_index, detrended_full, label='Detrended', color='blue')
         ax2.axhline(0, linestyle="dashed", color="black", alpha=0.7)
@@ -816,8 +780,20 @@ def process_time_series(
         ax1.legend()
         plt.tight_layout()
         plt.show()
-
+        
         return detrended_full, checkpoint
+        
+def rolling_window_detrend(series, window=50):
+    detrended = np.zeros_like(series)
+    for i in range(len(series)):
+        start = max(0, i - window // 2)
+        end = min(len(series), i + window // 2)
+        x = np.arange(end - start)
+        y = series[start:end]
+        coeffs = np.polyfit(x, y, 1)  # Linear fit
+        trend = np.polyval(coeffs, x)
+        detrended[start:end] = y - trend  # Subtract trend
+    return detrended
     
 ######
 def find_period(x : np.array) -> float:
