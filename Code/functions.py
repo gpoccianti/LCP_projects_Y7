@@ -8,13 +8,15 @@ import mplfinance as mpf
 from hurst import compute_Hc
 from scipy.fftpack import fft, ifft, fftfreq
 from scipy.stats import norm
-from pymannkendall import original_test, hamed_rao_modification_test, yue_wang_modification_test
+from pymannkendall import original_test, yue_wang_modification_test, yue_wang_modification_test
 from scipy.stats import linregress
 from sklearn.linear_model import LinearRegression
 import matplotlib.patches as mpatches
 from scipy.optimize import curve_fit
 from scipy.stats import anderson
 from scipy.special import erf
+import matplotlib.lines as mlines
+
 
 
 def import_data(file_path):
@@ -144,7 +146,7 @@ def filter_signal(sig, datetime_index, time_step=15*60, freq_factor=100,plot=Fal
     return filtered_sig_series
 
 
-def filter_signal_by_auc(sig, datetime_index, time_step=15*60, discard_fraction=0.1,plot_spectrum=False):
+def filter_signal_by_auc(sig, datetime_index, time_step=15*60, discard_fraction=0.03,plot_spectrum=False):
     """
     Filters the input signal by removing high-frequency components based on the area under the curve (AUC).
 
@@ -237,75 +239,72 @@ def get_period(sig,discard_fraction=0.1,time_step=15*60):
 
 def mann_kendall(chunk_size, start_index, end_index, df, plotting=False):
     """
-    function to apply the mann kendall test to a given window
+    Function to apply the Mann-Kendall test to a given window.
     """
-    or_test=[]
-    modified_test=[]
-    prices_filtered=filter_signal_by_auc(df['HA_close'][start_index:end_index].values, df[start_index:end_index].index,plot_spectrum=False)
-    for i in range(0,int((end_index-start_index)/chunk_size)):
+    or_test = []
+    modified_test = []
 
-        s=start_index+i*chunk_size
-        e=start_index+(i+1)*chunk_size
+    # Ensure df_filtered is properly assigned
+    df_filtered = filter_signal_by_auc(
+        df['HA_close'][start_index:end_index].values,
+        df[start_index:end_index].index,
+        plot_spectrum=False
+    )
+
+    for i in range(0, int((end_index - start_index) / chunk_size)):
+        s = start_index + i * chunk_size
+        e = s + chunk_size
 
         trend_test_filtered = original_test(df['HA_close'][s:e].values)
-        trend_test_modified_filtered = yue_wang_modification_test(prices_filtered)
+        trend_test_modified_filtered = yue_wang_modification_test(df_filtered.iloc[s-start_index:e-start_index].values)
 
-        if (trend_test_filtered[0]=='no trend'):
-            or_test.append(0)
-        elif (trend_test_filtered[0]=='increasing'):
-            or_test.append(1)
-        else:
-            or_test.append(-1)
+        # Convert test results to numerical values
+        or_test.append(1 if trend_test_filtered[0] == 'increasing' else (-1 if trend_test_filtered[0] == 'decreasing' else 0))
+        modified_test.append(1 if trend_test_modified_filtered[0] == 'increasing' else (-1 if trend_test_modified_filtered[0] == 'decreasing' else 0))
 
-        if (trend_test_modified_filtered[0]=='no trend'):
-            modified_test.append(0)
-        elif (trend_test_modified_filtered[0]=='increasing'):
-            modified_test.append(1)
-        else:
-            modified_test.append(-1)
-
-    if(plotting==True):
-        df_filtered= filter_signal_by_auc(df['HA_close'][start_index:end_index].values, df[start_index:end_index].index)
+    if plotting:
         plt.figure(figsize=(14, 5))
-        for i in range(0,len(original_test)):
+        for i in range(len(or_test)):
             s = start_index + i * chunk_size
             e = s + chunk_size
 
-            if(e+3>=len(df_filtered)):
+            if e >= len(df_filtered):  # Ensure we don't exceed bounds
                 break
 
-            # Determine the color based on test_result
-            if or_test[i] == 1:
-                color = 'green'
-            elif or_test[i] == -1:
-                color = 'red'
-            else:
-                color = 'blue'
+            # Determine colors based on test results
+            color_map = {1: 'green', -1: 'red', 0: 'blue'}
+            color_filtered_map = {1: 'orange', -1: 'black', 0: 'cyan'}
 
-            if modified_test[i] == 1:
-                color_filtered = 'orange'
-            elif modified_test[i] == -1:
-                color_filtered = 'black'
-            else:
-                color_filtered = 'cyan'
+            color = color_map[or_test[i]]
+            color_filtered = color_filtered_map[modified_test[i]]
 
-            # Plot the chunk
-            plt.plot(df.loc[df.index[s]:df.index[e],['HA_close']], color=color, label='' )
-            plt.plot(df_filtered[s-start_index:e-end_index].index, df_filtered[s-start_index:e-end_index].values,color=color_filtered, linewidth=1 )
+            # Plot original data chunk
+            plt.plot(df.index[s:e], df['HA_close'][s:e], color=color, label='_nolegend_')
+
+            # Plot filtered data chunk
+            plt.plot(df_filtered.iloc[s-start_index:e-start_index].index,
+                     df_filtered.iloc[s-start_index:e-start_index].values,
+                     color=color_filtered, linewidth=1, label='_nolegend_')
+
+            # Add vertical line to separate chunks
             plt.axvline(df.index[s], color='grey', linestyle='dashed')
+            plt.xticks(rotation=45)
 
+        # Define legend elements
+        legend_elements = [
+            mlines.Line2D([], [], color='red', linestyle='-', label='Original Test (Decreasing)'),
+            mlines.Line2D([], [], color='green', linestyle='-', label='Original Test (Increasing)'),
+            mlines.Line2D([], [], color='blue', linestyle='-', label='Original Test (No Trend)'),
+            mlines.Line2D([], [], color='black', linestyle='-', label='Modified Test (Decreasing)'),
+            mlines.Line2D([], [], color='orange', linestyle='-', label='Modified Test (Increasing)'),
+            mlines.Line2D([], [], color='cyan', linestyle='-', label='Modified Test (No Trend)'),
+            mlines.Line2D([], [], color='gray', linestyle='--', label='Chunk Separator')
+        ]
+        
         plt.xlabel('Time', fontsize=12)
         plt.ylabel('Price', fontsize=12)
-        plt.title('MK test applied to filtered data')
-
-        original1 = mlines.Line2D([], [], color='red', linestyle='-', label='Original test')
-        original2 = mlines.Line2D([], [], color='green', linestyle='-', label='Original test')
-        original3 = mlines.Line2D([], [], color='blue', linestyle='-', label='Original test')
-        modified1 = mlines.Line2D([], [], color='black', linestyle='-', label='Modified test')
-        modified2 = mlines.Line2D([], [], color='orange', linestyle='-', label='Modified test')
-        modified3 = mlines.Line2D([], [], color='cyan', linestyle='-', label='Modified test')
-        chunk=mlines.Line2D([], [], color='gray', linestyle='--', label='chunk')
-        plt.legend(handles=[original1, original2, original3, modified1, modified2, modified3, chunk], loc='lower right')
+        plt.title('MK Test Applied to Filtered Data')
+        plt.legend(handles=legend_elements, loc='lower right')
 
     return or_test, modified_test
 
@@ -580,7 +579,7 @@ def process_time_series(
     # Subset the DataFrame for the given range
     df_range = df.iloc[start_index:end_index].copy()
     
-    def filter_signal_by_auc(sig, datetime_index, time_step=15*60, discard_fraction=0.1,plot_spectrum=False):
+    def filter_signal_by_auc(sig, datetime_index, time_step=15*60, discard_fraction=0.03,plot_spectrum=False):
         # The corresponding frequencies
         sample_freq = fftfreq(sig.size, d=time_step)
         pos_mask = sample_freq > 0
@@ -677,7 +676,7 @@ def process_time_series(
             break
         if e_time == end_datetime:
             break
-    checkpoint=hamed_rao_modification_test(df_range['HA_close'].values).trend
+    checkpoint=yue_wang_modification_test(df_range['HA_close'].values).trend
     if checkpoint == 'increasing' or checkpoint=='decreasing':
         test_result = []
         test_result_filtered = []
@@ -686,7 +685,7 @@ def process_time_series(
         # Apply filtering to that chunk
             segment_filtered = filter_signal(segment, segment.index)
         # Mann-Kendall on raw segment
-            mk_raw = hamed_rao_modification_test(segment.values)
+            mk_raw = yue_wang_modification_test(segment.values)
             if mk_raw[0] == 'increasing':
                 test_result.append(1)
             elif mk_raw[0] == 'decreasing':
@@ -694,7 +693,7 @@ def process_time_series(
             else:
                 test_result.append(0)
         # Mann-Kendall on filtered segment
-            mk_filt = hamed_rao_modification_test(segment_filtered.values)
+            mk_filt = yue_wang_modification_test(segment_filtered.values)
             if mk_filt[0] == 'increasing':
                 test_result_filtered.append(1)
             elif mk_filt[0] == 'decreasing':
