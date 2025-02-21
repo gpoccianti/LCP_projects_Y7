@@ -12,6 +12,9 @@ from pymannkendall import original_test, hamed_rao_modification_test, yue_wang_m
 from scipy.stats import linregress
 from sklearn.linear_model import LinearRegression
 import matplotlib.patches as mpatches
+from scipy.optimize import curve_fit
+from scipy.stats import anderson
+from scipy.special import erf
 
 
 
