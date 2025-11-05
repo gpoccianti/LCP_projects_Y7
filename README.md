@@ -68,7 +68,7 @@ $$
 
 Here, the first term in the numerator is the variance of \( S \) assuming no ties, while the summation accounts for ties, reducing the variance. \( q \) is the number of unique values that have ties, and \( t_j \) is the count of occurrences for each tied value.
 
-If $$ Z < Z_{\alpha/2} $$ at a significance level \( \alpha \), then no significant trend exists in the time series.
+If $Z < Z_{\alpha/2}$ at a significance level \( \alpha \), then no significant trend exists in the time series.
 
 (References: [https://doi.org/10.2307/1907187](https://doi.org/10.2307/1907187), [doi:10.1017/S0020268100013019](doi:10.1017/S0020268100013019))
 
