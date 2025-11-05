@@ -66,7 +66,7 @@ $$
 \sigma_s = \sqrt{\frac{n(n-1)(2n+5) - \sum_{j=1}^{q} t_j (t_j - 1)(2t_j + 5)}{18}}
 $$
 
-Here, the first term in the numerator is the variance of \( S \) assuming no ties, while the summation accounts for ties, reducing the variance. \( q \) is the number of unique values that have ties, and \( t_j \) is the count of occurrences for each tied value.
+Here, the first term in the numerator is the variance of $ S $ assuming no ties, while the summation accounts for ties, reducing the variance. $ q $ is the number of unique values that have ties, and $ t_j $ is the count of occurrences for each tied value.
 
 If $Z < Z_{\alpha/2}$ at a significance level $ \alpha $, then no significant trend exists in the time series.
 
