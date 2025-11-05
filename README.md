@@ -27,12 +27,12 @@ We based our analysis on two different techniques:
 
 The Mann-Kendall (M-K) test is a non-parametric test used to assess monotonic trends. It is a hypothesis test:
 
-- **H₀**: There is no monotonic trend in the data. The observations \( x_1, x_2, ..., x_n \) are independent and randomly ordered over time.
+- **H₀**: There is no monotonic trend in the data. The observations $\( x_1, x_2, ..., x_n \)$ are independent and randomly ordered over time.
 - **Hₐ**: There is a monotonic trend in the data.
 
 The test computes the difference between each pair of data points and counts how many of these differences are positive or negative, evaluating whether there are more increasing or decreasing values in the dataset.
 
-When applied to a time series, the test statistic \( S \) is defined as:
+When applied to a time series, the test statistic $ S $ is defined as:
 
 $$
 S = \sum_{i=1}^{n-1} \sum_{j=i+1}^{n} \text{sgn} (x_j - x_i)
@@ -68,7 +68,7 @@ $$
 
 Here, the first term in the numerator is the variance of \( S \) assuming no ties, while the summation accounts for ties, reducing the variance. \( q \) is the number of unique values that have ties, and \( t_j \) is the count of occurrences for each tied value.
 
-If $Z < Z_{\alpha/2}$ at a significance level \( \alpha \), then no significant trend exists in the time series.
+If $Z < Z_{\alpha/2}$ at a significance level $ \alpha $, then no significant trend exists in the time series.
 
 (References: [https://doi.org/10.2307/1907187](https://doi.org/10.2307/1907187), [doi:10.1017/S0020268100013019](doi:10.1017/S0020268100013019))
 
